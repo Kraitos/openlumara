@@ -2,15 +2,11 @@
 // Message Rendering - OpenAI-Compliant
 // =============================================================================
 
-let messagesAnimated = false;
-
 /**
  * Render all messages with proper turn handling.
  */
 function renderAllMessages(messages, animate = false) {
-    if (animate) messagesAnimated = false;
-    const shouldAnimate = !messagesAnimated && animate;
-    if (shouldAnimate) messagesAnimated = true;
+    const shouldAnimate = !!animate;
 
     const wrappers = chat.querySelectorAll('.message-wrapper');
     wrappers.forEach(wrapper => wrapper.remove());

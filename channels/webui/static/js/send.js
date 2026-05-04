@@ -197,6 +197,7 @@ async function send(providedContent = null) {
     if (!isRegenerate) {
         placeholderUserWrapper = createPlaceholderUserMessage(message);
         chat.insertBefore(placeholderUserWrapper, typing);
+        scrollToBottom();
     }
 
     // Check API status
@@ -273,6 +274,8 @@ async function send(providedContent = null) {
 
     const soundEnabled = localStorage.getItem("streamingSoundEnabled") !== 'false';
     let playedCompletionSound = false;
+
+    scrollToBottom();
 
     try {
         const response = await fetch('/stream', {
@@ -704,7 +707,7 @@ function waitForTypewriter() {
 
 function createPlaceholderUserMessage(text) {
     const wrapper = document.createElement('div');
-    wrapper.className = 'message-wrapper user user-placeholder';
+    wrapper.className = 'message-wrapper user user-placeholder animate-in';
 
     const msgDiv = document.createElement('div');
     msgDiv.className = 'message user';
@@ -734,6 +737,8 @@ function removePlaceholder() {
 function startStreamingUI(aiWrapper, typingIndicator) {
     typingIndicator.classList.remove('show');
     aiWrapper.classList.remove('hidden');
+    aiWrapper.classList.add('animate-in');
+    scrollToBottom();
     return true;
 }
 
