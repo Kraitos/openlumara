@@ -126,7 +126,7 @@
 #chat-title-text {
     min-width: 0;
     flex: 1;
-    line-height: 1.2;
+    line-height: 24px;
     height: 24px; /* Fixed height to prevent layout shift during rename */
 }
 
