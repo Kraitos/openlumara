@@ -11,7 +11,7 @@ class Client(discord.Client):
 
     async def _stream_to_discord(self, token_stream, discord_channel):
         """streams a message to discord in steps"""
-        message_obj = await discord_channel.send("...")
+        message_obj = await discord_channel.send("...", mention_author=self.ai_channel.config.get("use_replies"))
 
         # Buffers for the CURRENT active discord message
         current_text_buffer = []
@@ -164,7 +164,7 @@ class Client(discord.Client):
                             response_obj = self.ai_channel.send_stream({"role": "user", "content": content})
                             response_content = await self._stream_to_discord(response_obj, message.channel)
                         else:
-                            response_content = await self.ai_channel.send({"role": "user", "content": content})
+                            response_content = await self.ai_channel.send({"role": "user", "content": content}, mention_author=self.ai_channel.config.get("use_replies"))
                             await message.channel.send(response_content.get("content"))
 
                         core.log("discord", f"<{message.guild.me.name}> {response_content}")
@@ -177,6 +177,7 @@ class Discord(core.channel.Channel):
         "authorised_user_id": "USER_ID_HERE",
         "require_mentions": False,
         "use_message_streaming": False,
+        "use_replies": True,
         "enable_group_chat": False,
         "announce_startup": False,
         "announce_shutdown": False
