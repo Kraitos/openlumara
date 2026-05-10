@@ -446,9 +446,13 @@ class Channel:
         # if dict, just use it as-is
         # otherwise, turn it into an openAI message dict
         if isinstance(message, dict):
-            await self.context.chat.add(message, push=True)
+            await self.push_queue.put(message)
+            # if add_to_context:
+            #      self.context.chat.add(message)
         else:
-            await self.context.chat.add({"role": "assistant", "content": str(message)}, push=True)
+            await self.push_queue.put({"role": "assistant", "content": str(message)})
+            # if add_to_context:
+            #     await self.context.chat.add({"role": "assistant", "content": str(message)})
 
     async def announce(self, message: str, type=None):
         """called externally to announce things in this channel, such as a reminder sent by the AI"""

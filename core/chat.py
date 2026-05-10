@@ -270,15 +270,13 @@ class Chat:
         await self.save()
         return True
 
-    async def add(self, message: dict, ghost = False, push=False):
+    async def add(self, message: dict, ghost = False):
         """add message to current chat"""
         if self.current is None:
             await self.new()
 
         # make a copy so we don't modify the original reference
         new_message = message.copy()
-
-        # await self._insert_blank_user_msg(new_message)
 
         # ensure message does not exceed token limits
         max_tokens = int(core.config.get("api").get("max_context", 8192))
@@ -310,14 +308,7 @@ class Chat:
         if ghost:
             new_message["ghost"] = True
 
-        if push:
-            # don't send push messages into context, do display them in chat history
-            new_message["push"] = True
-
         self.data[self.current]["messages"].append(new_message)
-
-        if push and hasattr(self.channel, "push_queue"):
-            await self.channel.push_queue.put(new_message)
 
         index = len(self.data[self.current]["messages"]) - 1
         await self.save()
@@ -333,25 +324,6 @@ class Chat:
         await self.save()
 
         return index
-
-    async def _insert_blank_user_msg(self, message: dict):
-        messages = await self.get()
-
-        if (
-            # if we have anything at all in the messages array
-            messages and
-            # and the last message was an assistant message
-            messages[-1].get("role") == "assistant" and
-            # and the message we're about to post is an assistant message
-            message.get("role") == "assistant"
-        ):
-            # according to openAI spec, consecutive assistant messages
-            # are not allowed. so we enforce it here
-
-            # assistants are allowed to output after a tool role message
-            # but not after their own message..
-            await self.add({"role": "user", "content": "[SYSTEM_TICK]"})
-        return True
 
     async def get_token_usage(self):
         """

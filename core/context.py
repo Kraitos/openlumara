@@ -38,13 +38,45 @@ class Context:
         # Get history from the chat (the full, untrimmed version)
         messages = copy.deepcopy(await self.chat.get())
 
-        # Remove ghost and push messages from history
+        # Remove ghost messages from history
         messages = [msg for msg in messages if not msg.get("ghost")]
-        messages = [msg for msg in messages if not msg.get("push")]
         
         # If disabled, remove reasoning from all prior messages
         if not core.config.get("model", "keep_reasoning_in_context"):
             messages = [{k: v for k, v in m.items() if k != "reasoning_content"} for m in messages]
+
+        # Merge consecutive assistant messages
+        if messages:
+            merged_messages = []
+            for msg in messages:
+                if merged_messages and msg.get("role") == "assistant" and merged_messages[-1].get("role") == "assistant":
+                    # Merge content
+                    prev_content = merged_messages[-1].get("content")
+                    curr_content = msg.get("content")
+                    
+                    if isinstance(prev_content, str) and isinstance(curr_content, str):
+                        merged_messages[-1]["content"] = prev_content + "\n" + curr_content
+                    elif isinstance(prev_content, list) and isinstance(curr_content, list):
+                        # If content is a list (multimodal), we try to merge text parts
+                        new_content = []
+                        # This is a simple merge for text parts; more complex merging would be needed for images
+                        for part in prev_content:
+                            new_content.append(part)
+                        for part in curr_content:
+                            if isinstance(part, dict) and part.get("type") == "text":
+                                # If the last part was text, append to it
+                                if new_content and isinstance(new_content[-1], dict) and new_content[-1].get("type") == "text":
+                                    new_content[-1]["text"] += "\n" + part["text"]
+                                else:
+                                    new_content.append(part)
+                            else:
+                                new_content.append(part)
+                        merged_messages[-1]["content"] = new_content
+                    else:
+                        merged_messages.append(msg)
+                else:
+                    merged_messages.append(msg)
+            messages = merged_messages
 
         # Apply max_messages limit to history first
         if messages and len(messages) > max_messages:

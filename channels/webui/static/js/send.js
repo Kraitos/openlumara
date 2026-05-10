@@ -467,7 +467,7 @@ async function send(providedContent = null) {
             collapseFinishedReasoning(aiMsgDiv);
             await finalizeStreamingUI(aiWrapper, aiMsgDiv);
         }
-
+        
         // Update chat info
         try {
             const chatResponse = await fetch('/chat/current');

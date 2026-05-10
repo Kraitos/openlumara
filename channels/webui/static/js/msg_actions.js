@@ -81,10 +81,6 @@ async function saveEdit(index, newContent) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ index: index, content: newContent })
         });
-
-        if (response.ok) {
-            await syncMessages();
-        }
     } catch (err) {
         console.error('Failed to edit message:', err);
     }
@@ -94,7 +90,6 @@ async function saveEdit(index, newContent) {
 
 function cancelEdit() {
     editingIndex = null;
-    syncMessages();
 }
 
 async function deleteMessage(index) {
@@ -106,10 +101,6 @@ async function deleteMessage(index) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ index: index })
         });
-
-        if (response.ok) {
-            await syncMessages();
-        }
     } catch (err) {
         console.error('Failed to delete message:', err);
     }
@@ -218,9 +209,6 @@ async function regenerateMessage(targetIndex) {
             console.error('Failed to delete messages for regeneration');
             return;
         }
-
-        // Sync to update UI
-        await syncMessages();
 
         // Re-send the content
         await send(contentToResend);

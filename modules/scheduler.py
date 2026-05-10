@@ -189,9 +189,17 @@ class Scheduler(core.module.Module):
         if final_content:
             try:
                 if job_channel:
+                    # first push
                     await job_channel.push(final_content)
+
+                    # then add to context
+                    await job_channel.context.chat.add({"role": "assistant", "content": final_content})
                 elif self.channel:
+                    # first push
                     await self.channel.push(final_content)
+
+                    # then add to context
+                    await self.channel.context.chat.add({"role": "assistant", "content": final_content})
             except Exception as e:
                 core.log_error(f"[SCHEDULER] error announcing job {job_id} result", e)
 

@@ -7,6 +7,7 @@ source of truth for all messages including user messages, AI responses,
 commands, and announcements.
 """
 
+
 import os
 import asyncio
 import json
@@ -26,6 +27,7 @@ from functools import wraps
 import core
 import msgpack
 import yaml
+from flask_socketio import SocketIO, emit
 
 import io
 
@@ -99,6 +101,10 @@ app = Flask(
     __name__,
     static_folder=os.path.join(WEBUI_DIR, "static")
 )
+
+# Initialize SocketIO
+socketio = SocketIO(app, cors_allowed_origins="*")
+
 # Use a persistent secret key if configured, otherwise use a random one
 webui_config = core.config.get("channels", {}).get("settings", {}).get("webui", {})
 app.secret_key = webui_config.get("secret_key", secrets.token_hex(32))
@@ -143,11 +149,11 @@ def serialize_for_json(obj):
 def add_security_headers(response):
     csp = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io; "
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: blob:; "
-        "connect-src 'self'; "
+        "connect-src 'self' wss:; "
         "frame-ancestors 'none';"
     )
     response.headers['Content-Security-Policy'] = csp
@@ -201,16 +207,12 @@ class Webui(core.channel.Channel):
 
     def _run_flask(self):
         """Run Flask in a separate thread."""
-        from werkzeug.serving import make_server
-
         host = core.config.get("channels").get("settings").get("webui").get("host", "127.0.0.1")
         port = core.config.get("channels").get("settings").get("webui").get("port", 5000)
 
-        self.server = make_server(host, port, app, threaded=True)
-        self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
+        # Use socketio.run to handle websockets
         try:
-            self.server.serve_forever()
+            socketio.run(app, host=host, port=port)
         except Exception as e:
             err_msg = core.detail_error(e) if core.debug else e
             core.log("webui", f"Server error: {err_msg}")
@@ -220,22 +222,22 @@ class Webui(core.channel.Channel):
     def on_shutdown(self):
         """Shutdown the Flask server gracefully."""
         self._shutdown_requested = True
-        if self.server:
-            core.log("webui", "Shutting down WebUI server...")
-            self.server.shutdown()
-
-        # wait for the thread to actually finish cleaning up the socket
+        core.log("webui", "Shutting down WebUI server...")
+        # socketio.run() blocks the thread; we trigger shutdown by raising an exception
+        # or simply let the app handle it. For now, we just wait for the thread.
         if hasattr(self, 'flask_thread') and self.flask_thread.is_alive():
             self.flask_thread.join()
 
     async def _announce(self, message: str, type: str = None):
         """
         Handle announcements - the base class already inserted into backend.
-
-        Since we poll the backend for messages, no special handling needed here.
-        The frontend will pick up announcements on the next poll.
         """
         core.log("webui", f"Announcement ({type}): {message[:50]}...")
+
+    async def on_push(self, message: dict):
+        """Triggered when a message is pushed (announcements, etc)"""
+        core.log("webui", "pushing message via websocket")
+        socketio.emit('push_message', message)
 
 def _run_async(coro):
     """Helper to run async coroutines from sync Flask routes."""

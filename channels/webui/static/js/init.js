@@ -76,14 +76,75 @@ async function init() {
 
         window.addEventListener('resize', handleTitleBarResize);
 
-        // Message polling
-        pollIntervalId = setInterval(() => {
-            if (isConnected) {
-                pollMessages();
-            }
-        }, CONFIG.POLL_INTERVAL);
+        // WebSocket Connection
+        let socket = null;
+        
+        function connectWebSocket() {
+            socket = io({
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 5
+            });
 
-        // Periodic API status check
+            socket.on('connect', () => {
+                console.log('WebSocket connected');
+                isConnected = true;
+            });
+
+            socket.on('push_message', (msg) => {
+                handleNewMessage(msg);
+            });
+            
+            socket.on('disconnect', (reason) => {
+                console.log('WebSocket disconnected:', reason);
+            });
+        }
+
+        // State for turn grouping
+        let pendingTurn = null;
+        let pendingToolCalls = new Map();
+        let waitingForToolIds = [];
+
+        function renderAssistantTurnFromBuffer(assistantMsg, toolResponseMap) {
+            // Convert Map to array of messages for renderAssistantTurn
+            const turnMessages = [assistantMsg];
+            const callIds = assistantMsg.tool_calls.map(tc => tc.id);
+            for (const id of callIds) {
+                if (toolResponseMap.has(id)) {
+                    turnMessages.push(toolResponseMap.get(id));
+                }
+            }
+            
+            const lastMsg = turnMessages[turnMessages.length - 1];
+            renderAssistantTurn(turnMessages, lastMsg.index, true);
+        }
+
+        function handleNewMessage(msg) {
+            if (!isConnected || userIsEditing) return;
+
+            console.log("received websocket message");
+
+            if (msg.role === 'assistant' && isStreaming) return;
+
+            console.log("proceeding with websocket message..");
+
+            if (chat.querySelector(`[data-index="${msg.index}"]`)) return;
+
+            console.log("rendering websocket message");
+            console.log(msg);
+            renderSingleMessage(msg, msg.index, true);
+            if (typeof msg.index === 'number') {
+                lastMessageIndex = msg.index + 1;
+            }
+            scrollToBottom();
+            updateTokenUsage();
+        }
+
+        // Start WebSocket connection
+        connectWebSocket();
+
+        // Periodic API status check (still uses polling for status)
         apiStatusIntervalId = setInterval(() => {
             if (isConnected) {
                 checkApiStatus();
