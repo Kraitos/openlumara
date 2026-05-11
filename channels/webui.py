@@ -171,7 +171,6 @@ class Webui(core.channel.Channel):
     settings = {
         "host": "localhost",
         "port": 5000,
-        "use_short_replies": False,
         "require_login": False,
         "username": "admin",
         "password": "admin"

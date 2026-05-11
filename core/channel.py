@@ -556,6 +556,25 @@ class Channel:
         last_token_was_newline = False
         char_counter = 0
 
+        strings = {
+            "no_markdown": {
+                "thinking_header": "\n------\nThinking:\n\n",
+                "thinking_str": "\nthinking..\n",
+                "conclusion_header": "\n\n------\nConclusion:\n\n",
+                "processing_tool": "\n(processing results..)\n",
+                "thinking_newline": "\n"
+            },
+            "markdown": {
+                "thinking_header": "\n### Thinking\n> ",
+                "thinking_str": "**thinking..**\n",
+                "conclusion_header": "\n",
+                "processing_tool": "\n(processing results..)\n",
+                "thinking_newline": "\n> "
+            }
+        }
+
+        string_type = "markdown" if use_markdown else "no_markdown"
+
         async for token in stream:
             token_type = token.get("type")
             content = token.get("content", "")
@@ -564,7 +583,7 @@ class Channel:
             try:
                 # format the reasoning to look all fancy
                 if show_reasoning:
-                    newline_str = "\n" if not currently_reasoning else "\n> "
+                    newline_str = "\n" if not currently_reasoning else strings[string_type]["thinking_newline"]
                 else:
                     newline_str = "\n"
 
@@ -580,36 +599,37 @@ class Channel:
                 yield {"type": "new_chunk", "content": ""}
                 char_counter = 0
 
-                if currently_reasoning and show_reasoning:
+                if currently_reasoning and show_reasoning and use_markdown:
                     yield text_to_token("> ")
                     char_counter += len("> ") # what we just emitted counts as a token
 
+            # show thinking header
             if token_type == "reasoning" and not currently_reasoning:
                 if show_reasoning:
                     # think_str = "\n## Thinking:\n> "
-                    think_str = "\n### thinking..\n> "
-                    currently_reasoning = True
+                    think_str = strings[string_type]["thinking_header"]
                 else:
-                    think_str = "\n*thinking..*\n"
+                    think_str = strings[string_type]["thinking_str"]
                 currently_reasoning = True
 
                 char_counter += len(think_str)
                 yield text_to_token(think_str)
 
-            header_str = None
-            if token_type == "tool":
-                header_str = "\n(processing results..)\n"
-            elif token_type == "content" and show_reasoning and currently_reasoning:
-                header_str = "\n"
-                # header_str = "\n## Conclusion:\n"
-
-            if header_str:
+            # show conclusion header
+            if token_type == "content" and show_reasoning and currently_reasoning:
+                header_str = strings[string_type]["conclusion_header"]
                 char_counter += len(header_str)
                 yield text_to_token(header_str)
 
             if token_type in ["content", "tool_calls", "tool"] and currently_reasoning:
                 # we can have multiple reasoning blocks
                 currently_reasoning = False
+
+            # show tool result text
+            if token_type == "tool":
+                tool_result_str = strings[string_type]["processing_tool"]
+                char_counter += len(tool_result_str)
+                yield text_to_token(tool_result_str)
 
             if self.config.get("stream_tool_calls") and token_type == "tool_call_delta":
                 # Extract the accumulated tool call from the delta

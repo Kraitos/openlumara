@@ -201,66 +201,71 @@ class Telegram(core.channel.Channel):
         # 1. Start Typing Indicator
         typing_task = asyncio.create_task(self._keep_typing(chat_id))
 
-        message = None
-        last_edit_time = 0
-        tool_calls_display = []
-        response_buffer = []
-        shown_reasoning_text = False
+        # Pre-send a message like Discord does
+        initial_msg = await context.bot.send_message(chat_id, "processing your request...")
+
+        class StreamState:
+            def __init__(self, initial_msg):
+                self.message_obj = initial_msg
+                self.full_content = ""
+                self.is_running = True
+
+        state = StreamState(initial_msg)
+        edit_lock = asyncio.Lock()
+        edit_interval = 1.5
+
+        async def periodic_editor():
+            while state.is_running:
+                await asyncio.sleep(edit_interval)
+                async with edit_lock:
+                    if state.message_obj and state.full_content:
+                        try:
+                            await state.message_obj.edit_text(state.full_content[:4000])
+                        except Exception:
+                            pass
+
+        editor_task = asyncio.create_task(periodic_editor())
 
         try:
             # 2. Consume the stream
-            async for token in self.format_stream_for_text(self.send_stream({"role": "user", "content": user_msg})):
-                t_type = token.get("type")
+            # Use a chunk size similar to Discord's MAX_CHARS
+            stream = self.format_stream_for_text(
+                self.send_stream({"role": "user", "content": user_msg}), 
+                use_markdown=False,
+                chunk_size=1900
+            )
+
+            async for token in stream:
+                if token.get("type") == "new_chunk":
+                    async with edit_lock:
+                        # Finalize current message
+                        if state.message_obj:
+                            try:
+                                await state.message_obj.edit_text(state.full_content[:4000])
+                            except: pass
+                        
+                        # Start new message
+                        state.message_obj = await context.bot.send_message(chat_id, "...")
+                        state.full_content = ""
+                    continue
+
                 content = token.get("content", "")
-                visual_buffer = None
+                if not content:
+                    continue
 
-                if t_type == "tool_calls":
-                    if content:
-                        if isinstance(content, list):
-                            for tool in content:
-                                tool_calls_display.append(self.tc_manager.display_call(tool))
-                        else:
-                            tool_calls_display.append(self.tc_manager.display_call(content))
-                elif t_type == "reasoning":
-                    if not shown_reasoning_text:
-                        visual_buffer = "thinking.."
-                        shown_reasoning_text = True
-                    else:
-                        continue
-                elif t_type in ["content", "error"]:
-                    response_buffer.append(content)
+                async with edit_lock:
+                    state.full_content += content
 
-                # 3. Construct the visual message
-                tools_text = "\n".join(tool_calls_display)
-                text_part = "".join(response_buffer)
-
-                if not visual_buffer:
-                    if tools_text and text_part:
-                        visual_buffer = f"{tools_text}\n\n{text_part}"
-                    else:
-
-                        visual_buffer = tools_text + text_part
-
-                # 4. Throttled Editing
-                now = time.time()
-                if visual_buffer:
-                    if message is None:
-                        message = await context.bot.send_message(chat_id, visual_buffer)
-                        last_edit_time = now
-                    elif now - last_edit_time > 1.5:
-                        try:
-                            await message.edit_text(visual_buffer[:4000])
-                            last_edit_time = now
-                        except BadRequest:
-                            pass
-
-            # 5. Finalize
-            if message:
-                try:
-                    await message.edit_text(visual_buffer[:4000])
-                except: pass
-            elif visual_buffer:
-                await context.bot.send_message(chat_id, visual_buffer)
+            # 3. Finalize
+            async with edit_lock:
+                if state.message_obj:
+                    try:
+                        await state.message_obj.edit_text(state.full_content[:4000])
+                    except: pass
+                elif state.full_content:
+                    try:
+                        await context.bot.send_message(chat_id, state.full_content[:4000])
+                    except: pass
 
         except Exception as e:
             core.log("telegram", f"Error processing stream: {e}")
@@ -269,6 +274,12 @@ class Telegram(core.channel.Channel):
             except:
                 pass
         finally:
+            state.is_running = False
+            editor_task.cancel()
+            try:
+                await editor_task
+            except asyncio.CancelledError:
+                pass
             if not typing_task.done():
                 typing_task.cancel()
                 try:
