@@ -7,7 +7,8 @@ class Scheduler(core.module.Module):
     """Lets your AI send you scheduled reminders and do things at specified times"""
 
     settings = {
-        "put_scheduled_jobs_in_system_prompt": True
+        "put_scheduled_jobs_in_system_prompt": True,
+        "allow_recurring_jobs": True
     }
 
     async def on_ready(self, *args, **kwargs):
@@ -369,6 +370,9 @@ class Scheduler(core.module.Module):
         recurring: bool = False,
     ):
         """Adds a scheduled job. MODE 1 - RELATIVE TIME: Use relative_duration (e.g., '2d 4h 30m'). MODE 2 - SPECIFIC CLOCK TIME: Use target_time (e.g., '14:30'). Optionally set target_weekday (0=Monday) or weekdays_only=True. Action is what action should be performed at the scheduled time. Action is an instruction/prompt for the AI to follow, so write it in second person form."""
+        if recurring and not self.config.get("allow_recurring_jobs"):
+            return self.result("Error: Recurring scheduler jobs are disabled by security policy. Please inform the user.", success=False)
+
         import re
         
         weeks = days = hours = minutes = seconds = 0
