@@ -32,22 +32,6 @@ class Client(discord.Client):
                 t_type = token.get("type")
                 content = token.get("content", "")
 
-                if token.get("type") == "reasoning":
-                    if not shown_reasoning_text:
-                        await message_obj.edit(content="thinking..")
-                        shown_reasoning_text = True
-                    continue
-
-                # Handle Tool Calls
-                if t_type == "tool_calls":
-                    if content:
-                        if isinstance(content, list):
-                            for tool in content:
-                                current_tool_buffer.append(self.ai_channel.tc_manager.display_call(tool))
-                        else:
-                            current_tool_buffer.append(self.ai_channel.tc_manager.display_call(content))
-                    continue
-
                 if t_type != "content":
                     continue
 
@@ -55,13 +39,8 @@ class Client(discord.Client):
                     current_text_buffer.append(content)
                     full_response_text.append(content)
 
-                tools_text = "\n".join(current_tool_buffer)
                 text_part = "".join(current_text_buffer)
-
-                if tools_text and text_part:
-                    visual_buffer = f"{tools_text}\n\n{text_part}"
-                else:
-                    visual_buffer = tools_text + text_part
+                visual_buffer = text_part
 
                 # Check if we need to split
                 # We split if the current buffer exceeds the character limit
@@ -86,24 +65,16 @@ class Client(discord.Client):
                 # Edit message periodically (throttled)
                 if datetime.datetime.now() >= next_edit_time:
                     # Re-calculate visual buffer for the edit (it might be empty after a split)
-                    tools_text = "\n".join(current_tool_buffer)
                     text_part = "".join(current_text_buffer)
-                    if tools_text and text_part:
-                        visual_buffer = f"{tools_text}\n\n{text_part}"
-                    else:
-                        visual_buffer = tools_text + text_part
+                    visual_buffer = text_part
 
                     if visual_buffer:
                         await message_obj.edit(content=visual_buffer)
                     next_edit_time = datetime.datetime.now() + datetime.timedelta(seconds=1)
 
         # Final edit for the last message
-        tools_text = "\n".join(current_tool_buffer)
         text_part = "".join(current_text_buffer)
-        if tools_text and text_part:
-            visual_buffer = f"{tools_text}\n\n{text_part}"
-        else:
-            visual_buffer = tools_text + text_part
+        visual_buffer = text_part
 
         await message_obj.edit(content=visual_buffer or "BLANK")
 
@@ -178,7 +149,9 @@ class Client(discord.Client):
 
                     try:
                         if self.ai_channel.config.get("use_message_streaming"):
-                            response_obj = self.ai_channel.send_stream({"role": "user", "content": content})
+                            response_obj = self.ai_channel.format_stream_for_text(
+                                self.ai_channel.send_stream({"role": "user", "content": content})
+                            )
                             response_content = await self._stream_to_discord(response_obj, message.channel)
                         else:
                             response_obj = await self.ai_channel.send({"role": "user", "content": content})

@@ -332,6 +332,9 @@ class APIClient():
         if tool_calls:
             result["tool_calls"] = tool_calls
 
+            # role is always assistant, so we force it if for some reason its not present
+            result["role"] = "assistant"
+
         return result
 
     async def _recv_stream(self, response, use_tools=True):

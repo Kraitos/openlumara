@@ -40,6 +40,13 @@ class Context:
 
         # Remove ghost messages from history
         messages = [msg for msg in messages if not msg.get("ghost")]
+
+        # Remove messages that lack content (or tool_calls for assistants)
+        messages = [
+            msg for msg in messages
+            if (msg.get("role") == "assistant" and ("content" in msg or "tool_calls" in msg))
+            or (msg.get("role") != "assistant" and "content" in msg)
+        ]
         
         # If disabled, remove reasoning from all prior messages
         if not core.config.get("model", "keep_reasoning_in_context"):

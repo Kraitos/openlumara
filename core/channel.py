@@ -5,12 +5,20 @@ import sys
 import time
 import json
 import asyncio
+import json_repair
 
 class Channel:
     """Base class for channels"""
 
     settings = {
         # base settings here lol
+    }
+
+    # Persistent state for the tool renderer
+    _tool_state = {
+        "name": None,
+        "raw_args": "",
+        "keys_state": {}
     }
 
     def __init__(self, manager):
@@ -444,6 +452,95 @@ class Channel:
                         import traceback
                         traceback.print_exc()
                         core.log(module.name, f"could not run assistant message hook: {e}")
+
+    def _render_tool_token(self, name: str, args_str: str) -> str:
+        delta = ""
+
+        # 1. Handle tool switch
+        if name != self._tool_state["name"]:
+            self._tool_state["name"] = name
+            self._tool_state["raw_args"] = ""
+            self._tool_state["keys_state"] = {}
+            return f"\n**Calling tool: {name}**\n"
+
+        # 2. Try parsing JSON for key-value formatting
+        try:
+            data = json_repair.loads(args_str)
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    val_str = str(value)
+                    prev_val = self._tool_state["keys_state"].get(key)
+
+                    if prev_val is None:
+                        # New key: append header and current value
+                        delta += f"\n**{key}**: "
+                        if val_str:
+                            delta += val_str
+                        self._tool_state["keys_state"][key] = val_str
+                    elif val_str != prev_val:
+                        # Existing key: append only the new part of the value
+                        if val_str.startswith(prev_val):
+                            delta += val_str[len(prev_val):]
+                        else:
+                            delta += val_str
+                        self._tool_state["keys_state"][key] = val_str
+
+                self._tool_state["raw_args"] = args_str
+                return delta
+            raise ValueError()
+        except Exception:
+            # 3. Fallback: Raw string delta (handles partial or "new-only" deltas)
+            prev_raw = self._tool_state["raw_args"]
+            if args_str.startswith(prev_raw):
+                delta = args_str[len(prev_raw):]
+            else:
+                delta = args_str
+            self._tool_state["raw_args"] = args_str
+            return delta
+
+    async def format_stream_for_text(self, stream):
+        """
+        helper function so that channels don't need to implement this themselves...
+        takes care of properly displaying all the agentic turns
+        and nicely formatting it so it looks close to the webUI's presentation of it
+        """
+        def text_to_token(text):
+            return {"type": "content", "content": text}
+
+        currently_reasoning = False
+        show_reasoning = self.config.get("show_reasoning")
+        async for token in stream:
+            token_type = token.get("type")
+            content = token.get("content", "")
+
+            if token_type == "reasoning" and not currently_reasoning:
+                if show_reasoning:
+                    yield text_to_token("\n\n**Reasoning:**\n")
+                    currently_reasoning = True
+                else:
+                    yield text_to_token("thinking..\n")
+                    currently_reasoning = True
+            elif token_type == "tool":
+                yield text_to_token("\n(processing results..)\n\n")
+            elif token_type == "content" and show_reasoning and currently_reasoning:
+                yield text_to_token("\n\n**Conclusion:**\n")
+
+            if token_type in ["content", "tool_calls", "tool"] and currently_reasoning:
+                # we can have multiple reasoning blocks
+                currently_reasoning = False
+
+            elif token_type == "tool_call_delta":
+                # Extract the accumulated tool call from the delta
+                tc_list = token.get("tool_calls", [])
+                if tc_list:
+                    tc = tc_list[0]
+                    # Render the partial/full tool call fancy style
+                    yield text_to_token(self._render_tool_token(tc.function.name, tc.function.arguments))
+
+            if token_type == "content":
+                yield text_to_token(content)
+            if token_type == "reasoning" and show_reasoning:
+                yield text_to_token(content)
 
     async def on_push(self, message: dict):
         raise NotImplementedError

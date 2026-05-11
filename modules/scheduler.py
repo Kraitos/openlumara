@@ -143,13 +143,12 @@ class Scheduler(core.module.Module):
 
         event_message = {
             "role": "developer" if job_channel.manager.API.supports_developer_role else "user",
-            "content": f"""
-    [AUTOMATED SYSTEM INSTRUCTION]
-    Please follow these instructions:
-
-    {action}
-    Use tools if needed. For simple reminders, do not use tools.
-    """.strip()
+            "content": (
+                "[AUTOMATED SYSTEM INSTRUCTION]\n"
+                "Please follow these instructions:\n\n"
+                f"{action}\n"
+                "Use tools if needed. For simple reminders, do not use tools."
+            )
         }
 
         await job_channel.context.chat.add(event_message)
@@ -161,28 +160,34 @@ class Scheduler(core.module.Module):
         )
 
         # erase the automated instruction from history
-        await job_channel.context.chat.pop(-1)
+        for i, msg in enumerate(await job_channel.context.chat.get()):
+            if msg.get("content") == event_message["content"] and msg.get("role") == event_message["role"]:
+                await job_channel.context.chat.pop(i)
+                break
 
         if not response:
             return
 
-        final_content = ""
+        final_content = response.get("content", "")
         tool_calls = response.get("tool_calls")
 
         if tool_calls and job_channel:
-            final_content_list = []
+            tool_content_list = []
             async for token in job_channel.tc_manager.process(
                 response,
                 push=True
             ):
                 if token.get("type") == "content":
-                    final_content_list.append(token.get("content", ""))
-            final_content = "".join(final_content_list)
+                    tool_content_list.append(token.get("content", ""))
+            tool_content = "".join(tool_content_list)
+            if tool_content:
+                if final_content:
+                    final_content += "\n" + tool_content
+                else:
+                    final_content = tool_content
         elif tool_calls:
             core.log("scheduler", f"error executing job {job_id}: tool calls found but job_channel is invalid")
             return
-        else:
-            final_content = response.get("content", "")
 
         if final_content:
             try:
