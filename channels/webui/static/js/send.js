@@ -266,11 +266,11 @@ async function send(providedContent = null) {
     let streamHadError = false;
     let streamStarted = false;
 
-    const typewriterEnabled = localStorage.getItem("typewriterEnabled") !== 'false';
+    const typewriterEnabled = localStorage.getItem("typewriterEnabled") === 'true';
     const typewriterSpeed = parseInt(localStorage.getItem("typewriterSpeed") ?? "30", 10);
     const useTypewriter = typewriterEnabled && typewriterSpeed > 0;
 
-    const soundEnabled = localStorage.getItem("streamingSoundEnabled") !== 'false';
+    const soundEnabled = localStorage.getItem("streamingSoundEnabled") === 'true';
     let playedCompletionSound = false;
 
     scrollToBottom();
