@@ -2498,7 +2498,7 @@ function createThemeSection() {
     audioControls.className = 'settings-control-group';
 
     // Streaming Sound Toggle
-    const savedStreamingSoundEnabled = localStorage.getItem('streamingSoundEnabled') !== 'false';
+    const savedStreamingSoundEnabled = localStorage.getItem('streamingSoundEnabled') !== 'true';
 
     const streamingSoundToggleRow = document.createElement('div');
     streamingSoundToggleRow.className = 'toggle-row';
@@ -2762,7 +2762,7 @@ function createThemeSection() {
     twSection.appendChild(twHeader);
 
     // Enable/Disable Toggle
-    const savedTypewriterEnabled = localStorage.getItem('typewriterEnabled') !== 'false';
+    const savedTypewriterEnabled = localStorage.getItem('typewriterEnabled') !== 'true';
 
     const twToggleRow = document.createElement('div');
     twToggleRow.className = 'toggle-row';
