@@ -2,6 +2,10 @@ import core
 import ulid
 import datetime
 import os
+import tiktoken
+
+# wtf tiktoken?! apparentely you don't work offline... might need to switch off it ASAP
+os.environ["TIKTOKEN_CACHE_DIR"] = core.get_path(".tiktoken_cache")
 
 class Chat:
     DEFAULT_DATA = {
@@ -35,6 +39,20 @@ class Chat:
                 for key, default_value in self.DEFAULT_DATA.items():
                     if key not in chat.keys():
                         self.data[index][key] = default_value
+
+            # initialize token encoding
+            model_name = None
+            if hasattr(self.channel, 'manager') and hasattr(self.channel.manager, 'API'):
+                model_name = self.channel.manager.API._model
+
+            try:
+                self.token_encoding = tiktoken.encoding_for_model(model_name)
+            except KeyError:
+                self.token_encoding = tiktoken.get_encoding("cl100k_base")
+            except:
+                # If tiktoken fails to load (e.g. no internet and no cache), we set to None
+                # count_tokens will handle the fallback
+                self.token_encoding = None
 
         # chat autoresume
         if os.path.exists(self.current_save_path) and core.config.get("core", {}).get("auto_resume_chats"):
@@ -340,31 +358,25 @@ class Chat:
         self.data[self.current]["token_usage"] = usage
         self.data.save()
 
+    def _count_text_tokens(self, text: str) -> int:
+        """Helper to encode text using tiktoken or fallback to character heuristic"""
+        if not text:
+            return 0
+
+        if self.token_encoding:
+            try:
+                return len(self.token_encoding.encode(text))
+            except Exception:
+                # Fallback if encoding specifically fails
+                return len(text) // 4
+        else:
+            # Fallback: 1 token is roughly 4 characters for most English text
+            return len(text) // 4
+
     async def count_tokens(self, messages: list = None):
         """
-        Counts token usage locally using tiktoken
+        Counts token usage locally using tiktoken (with fallback)
         """
-
-        import tiktoken
-
-        # Get the model name from the API client
-        model_name = None
-        if hasattr(self.channel, 'manager') and hasattr(self.channel.manager, 'API'):
-            model_name = self.channel.manager.API._model
-
-        encoding = None
-        try:
-            # Try to get the specific tokenizer for the model (e.g. gpt-4)
-            if model_name:
-                encoding = tiktoken.encoding_for_model(model_name)
-        except (KeyError, ValueError):
-            # Fallback for unknown/custom models
-            pass
-
-        if not encoding:
-            # Final fallback to cl100k_base (used by GPT-4, Claude, etc.)
-            encoding = tiktoken.get_encoding("cl100k_base")
-
         num_tokens = 0
         _messages = messages or await self.channel.context.get(system_prompt=True, end_prompt=True)
         if not _messages:
@@ -373,31 +385,28 @@ class Chat:
         for message in _messages:
             # Conservative token counting:
             # - 3 tokens for message overhead (OpenAI format: <im_start>role\ncontent<im_end>\n)
-            # - Role is counted as part of content
-            # - This is simpler and less likely to overcount than more complex formulas
-
             num_tokens += 3
 
             # Count content
             if "content" in message:
                 content = message["content"]
                 if isinstance(content, str):
-                    num_tokens += len(encoding.encode(content))
+                    num_tokens += self._count_text_tokens(content)
                 elif isinstance(content, list):
                     # if its multimodal, skip all non-text content because we filter that out when using context.get()
                     for part in content:
                         if isinstance(part, dict):
                             part_text = part.get("text")
                             if isinstance(part_text, str):
-                                num_tokens += len(encoding.encode(part_text))
+                                num_tokens += self._count_text_tokens(part_text)
 
             # If there's a name, add it (it's part of the message)
             if "name" in message and isinstance(message["name"], str):
-                num_tokens += len(encoding.encode(message["name"]))
+                num_tokens += self._count_text_tokens(message["name"])
 
             # Count reasoning content if present
             if "reasoning_content" in message and isinstance(message["reasoning_content"], str):
-                num_tokens += len(encoding.encode(message["reasoning_content"]))
+                num_tokens += self._count_text_tokens(message["reasoning_content"])
 
         # Add 1 token for final assistant priming (conservative)
         num_tokens += 1

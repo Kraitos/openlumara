@@ -3,6 +3,7 @@ import os
 quiet = False
 debug = False
 
+from core.functions import *
 import core.storage
 import core.module
 import core.commands
@@ -10,7 +11,6 @@ import core.context
 import core.toolcalls
 import core.chat
 import core.channel
-from core.functions import *
 
 import core.modules
 import core.config
