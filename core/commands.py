@@ -460,6 +460,11 @@ core:
                 path_to_use = args
                 value_to_use = None
 
+                if len(args) >= 1:
+                    if args[0].strip() in ("modules", "user_modules", "channels"):
+                        # automatically alias to `/config modules settings`
+                        args.insert(1, "settings")
+
                 current = core.config.config
                 for i, arg in enumerate(args):
                     if arg in current:
