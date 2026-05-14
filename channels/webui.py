@@ -44,7 +44,7 @@ JS_FILES = [
 
 # same deal for css files
 CSS_FILES = [
-    "variables", "base", "containers", "sidebar", "tags", "rename", "content",
+    "variables", "base", "errors", "containers", "sidebar", "tags", "rename", "content",
     "header", "titlebar", "search", "modals", "search", "containers", "messages",
     "input", "upload", "keyboard", "responsive", "typewriter", "settings",
     "storage_editor", "autocomplete"

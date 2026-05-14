@@ -78,11 +78,24 @@ class APIClient():
                 http_client=self._httpx_client
             )
             await self._AI.models.list()
+
+        except openai.BadRequestError as e:
+            # Check if the error message specifically mentions the model is not found
+            error_str = str(e).lower()
+            if "model" in error_str and ("not found" in error_str or "missing" in error_str):
+                core.log_error("Model not found (400)", e)
+                return {"error": "model_not_found", "message": self._get_user_friendly_message("model_not_found", e)}
+            else:
+                # It's a different kind of 400 error (e.g., invalid parameters)
+                core.log_error("Bad request (400)", e)
+                return {"error": "api_error", "message": self._get_user_friendly_message("api_error", e)}
+
         except openai.AuthenticationError as e:
             await self.disconnect()
             self._connection_error = self._get_user_friendly_message("auth_failed", e)
             core.log("API", f"Authentication failed: {e}")
             return False
+
         except openai.APIConnectionError as e:
             await self.disconnect()
             self._connection_error = self._get_user_friendly_message("connection_lost", e)
@@ -140,11 +153,10 @@ class APIClient():
         try:
             # We send a minimal request using the 'developer' role.
             # We use a very short prompt to minimize token usage/cost.
-            response = await client.chat.completions.create(
-                model=self._model,
+            response = await self._request(
                 # send dev -> user -> dev to check for multi-dev-message support,
                 # which is what the dev role is useful for in our case
-                messages=[
+                [
                     {"role": "developer", "content": "test"},
                     {"role": "user", "content": "test"},
                     {"role": "developer", "content": "test2"}
@@ -163,7 +175,7 @@ class APIClient():
         """returns the last connection error message"""
         return self._connection_error
 
-    async def _request(self, context, tools=None, stream=False, use_thinking=True):
+    async def _request(self, context, tools=None, stream=False, use_thinking=True, **kwargs):
         """send a request to the LLM and return the response object"""
 
         if not context:
@@ -193,6 +205,11 @@ class APIClient():
                 }
             }
         }
+
+        # add kwargs to the request
+        for key, value in kwargs.items():
+            if key in ("tools", "stream", "use_thinking"): continue
+            req[key] = value
 
         reasoning_effort = core.config.get("model", {}).get("reasoning_effort")
         if reasoning_effort:
@@ -232,6 +249,17 @@ class APIClient():
 
             response = await request_task
 
+        except openai.BadRequestError as e:
+            # Check if the error message specifically mentions the model is not found
+            error_str = str(e).lower()
+            if "model" in error_str and ("not found" in error_str or "missing" in error_str):
+                core.log_error("Model not found (400)", e)
+                return {"error": "model_not_found", "message": self._get_user_friendly_message("model_not_found", e)}
+            else:
+                # It's a different kind of 400 error (e.g., invalid parameters)
+                core.log_error("Bad request (400)", e)
+                return {"error": "api_error", "message": self._get_user_friendly_message("api_error", e)}
+
         except asyncio.CancelledError:
             core.log_error("request was cancelled", None)
             return {"error": "cancelled", "message": self._get_user_friendly_message("cancelled")}
@@ -251,17 +279,6 @@ class APIClient():
         except openai.NotFoundError as e:
             core.log_error("Model not found", e)
             return {"error": "model_not_found", "message": self._get_user_friendly_message("model_not_found", e)}
-
-        except openai.BadRequestError as e:
-            # Check if the error message specifically mentions the model is not found
-            error_str = str(e).lower()
-            if "model" in error_str and "not found" in error_str:
-                core.log_error("Model not found (400)", e)
-                return {"error": "model_not_found", "message": self._get_user_friendly_message("model_not_found", e)}
-            else:
-                # It's a different kind of 400 error (e.g., invalid parameters)
-                core.log_error("Bad request (400)", e)
-                return {"error": "api_error", "message": self._get_user_friendly_message("api_error", e)}
 
         except openai.RateLimitError as e:
             core.log_error("Rate limit exceeded", e)

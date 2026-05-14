@@ -1345,51 +1345,6 @@
 }
 
 /* =============================================================================
- *  API Error Display
- *  ============================================================================= */
-
-.api-error-inline {
-    background: var(--error-bg);
-    border: 1px solid var(--error-border);
-    border-radius: var(--radius-md);
-    padding: 14px 18px;
-    margin: 6px 0;
-}
-
-.api-error-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-    color: var(--error);
-}
-
-.api-error-header svg {
-    flex-shrink: 0;
-    width: 16px;
-    height: 16px;
-}
-
-.api-error-title {
-    font-weight: 600;
-    font-size: 0.95em;
-}
-
-.api-error-message {
-    color: var(--text-primary);
-    font-size: 0.9em;
-    margin-bottom: 8px;
-    word-break: break-word;
-}
-
-.api-error-action {
-    color: var(--text-muted);
-    font-size: 0.85em;
-    font-style: italic;
-}
-
-
-/* =============================================================================
  *  Special backend signals
  *  ============================================================================= */
 .signal .summarization_cutoff {

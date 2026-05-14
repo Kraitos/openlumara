@@ -740,28 +740,105 @@ function startStreamingUI(aiWrapper, typingIndicator) {
 // Error Handlers
 // =============================================================================
 
+// =============================================================================
+// Improved Error Mapping Configuration
+// =============================================================================
+
+/**
+ * Centralized dictionary to map technical errors to human-friendly
+ * messages and actionable advice.
+ */
+const ERROR_MAP = {
+    // API/Connection Errors
+    'not_connected': {
+        title: 'Connection Lost',
+        message: 'We lost touch with the AI server.',
+        action: 'Please check your API settings or connection.',
+        icon: 'connection_lost'
+    },
+    'auth_failed': {
+        title: 'Authentication Failed',
+        message: 'Your API key is invalid or has expired.',
+        action: 'Please check your API key in the settings.',
+        icon: 'lock'
+    },
+    'rate_limit': {
+        title: 'Too Many Requests',
+        message: 'You are sending messages too quickly.',
+        action: 'Please wait a moment before trying again.',
+        icon: 'clock'
+    },
+    'api_error': {
+        title: 'AI Service Error',
+        message: 'The AI provider returned an error.',
+        action: 'Try rephrasing your prompt or try again later.',
+        icon: 'alert_circle'
+    },
+    'stream_failed': {
+        title: 'Stream Interrupted',
+        message: 'The response was cut off unexpectedly.',
+        action: 'Try clicking "Regenerate" to restart.',
+        icon: 'wifi_off'
+    },
+    'server_error': {
+        title: 'Server Hiccup',
+        message: 'The server encountered an internal error.',
+        action: 'This is usually temporary. Please try again in a few seconds.',
+        icon: 'server'
+    },
+    'network_error': {
+        title: 'Network Error',
+        message: 'Unable to reach the server.',
+        action: 'Check your internet connection and try again.',
+        icon: 'globe'
+    },
+    'default': {
+        title: 'Something went wrong',
+        message: 'An unexpected error occurred.',
+        action: 'Please try again or contact support if the problem persists.',
+        icon: 'error'
+    }
+};
+
+// Helper to get icon SVG based on type
+function getErrorIcon(type) {
+    const icons = {
+        'lock': '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+        'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+        'alert_circle': '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+        'wifi_off': '<line x1="1" y1="1" x2="23" y2="23"/><path d="M2 2l20 20"/><path d="M12 12l0 0"/>',
+        'globe': '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+        'server': '<rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>'
+    };
+    return icons[type] || icons['alert_circle'];
+}
+
+
+/**
+ * Handles HTTP error responses (4xx, 5xx)
+ */
 async function handleServerError(response, aiWrapper) {
-    let errorMsg = 'An unexpected error occurred.';
-    let errorType = 'unknown';
-    let action = '';
+    let errorType = 'server_error';
+    let customMessage = '';
 
     try {
         const errorData = await response.json();
-        errorMsg = errorData.error || errorData.message || errorMsg;
-        errorType = errorData.error_type || errorData.error || errorType;
-        action = errorData.action || '';
+        // Use the error_type provided by backend, or fallback to the error message
+        errorType = errorData.error_type || errorData.error || 'server_error';
+        customMessage = errorData.error || errorData.message || '';
     } catch (e) {
-        if (response.status === 503) {
-            errorMsg = 'API is not available.';
-        } else if (response.status === 500) {
-            errorMsg = 'Internal Server Error.';
-        } else if (response.status === 401 || response.status === 403) {
-            errorMsg = 'Authentication failed.';
-            errorType = 'auth_failed';
-        }
+        // Fallback if JSON parsing fails
+        if (response.status === 401 || response.status === 403) errorType = 'auth_failed';
+        else if (response.status === 429) errorType = 'rate_limit';
+        else if (response.status >= 500) errorType = 'server_error';
     }
 
-    showApiConfigError(errorMsg, errorType, action);
+    const info = ERROR_MAP[errorType] || ERROR_MAP['default'];
+
+    // If the backend gave us a specific message, prioritize it over our generic one
+    const displayMsg = customMessage ? `${customMessage} (${info.message})` : info.message;
+
+    showApiConfigError(displayMsg, errorType, info.action);
     removePlaceholder();
 
     if (aiWrapper && aiWrapper.parentNode) {
@@ -771,55 +848,81 @@ async function handleServerError(response, aiWrapper) {
     finishStream();
 }
 
+/**
+ * Handles errors that occur mid-stream (sent via data: {"type": "error", ...})
+ */
 function handleInlineError(data, aiMsgDiv, aiWrapper, streamStarted) {
     if (!streamStarted) aiWrapper.classList.remove('hidden');
 
     const errorDetails = data.error_data || {};
-    const errorMessage = errorDetails.message || 'An error occurred';
-    const errorType = errorDetails.error || 'unknown';
+    const type = errorDetails.error || 'api_error';
+    const info = ERROR_MAP[type] || ERROR_MAP['default'];
 
-    const errorTypeInfo = {
-        'not_connected': { title: 'Not Connected', action: 'Please check your API configuration.' },
-        'auth_failed': { title: 'Authentication Failed', action: 'Your API key may be invalid. Please check your settings.' },
-        'connection_lost': { title: 'Connection Lost', action: 'Lost connection to the API server. Please try again.' },
-        'rate_limit': { title: 'Rate Limit Exceeded', action: 'Please wait a moment and try again.' },
-        'api_error': { title: 'API Error', action: 'The API returned an error. Please try again.' },
-        'stream_failed': { title: 'Stream Failed', action: 'The response stream was interrupted.' },
-        'processing_failed': { title: 'Processing Failed', action: 'Failed to process the AI response.' },
-        'invalid_response': { title: 'Invalid Response', action: 'Received an invalid response from the API.' }
-    };
-
-    const info = errorTypeInfo[errorType] || { title: 'Error', action: '' };
+    // If the backend provides a specific error message, use it
+    const userMessage = errorDetails.message || info.message;
 
     aiMsgDiv.innerHTML = `
     <div class="api-error-inline">
     <div class="api-error-header">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    ${getErrorIcon(type)}
     </svg>
     <span class="api-error-title">${escapeHtml(info.title)}</span>
     </div>
-    <div class="api-error-message">${escapeHtml(errorMessage)}</div>
-    ${info.action ? `<div class="api-error-action">${escapeHtml(info.action)}</div>` : ''}
+    <div class="api-error-message">${escapeHtml(userMessage)}</div>
+    <div class="api-error-footer">
+    <div class="api-error-action">${escapeHtml(info.action)}</div>
+    <button class="retry-error-btn" onclick="retryLastMessage()">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20 8h-8a4 4 0 0 0 0 8h8"/></svg>
+    Retry
+    </button>
+    </div>
     </div>`;
 }
 
+/**
+ * Handles hard network failures (DNS, CORS, Offline)
+ */
 function handleCatchError(err, aiMsgDiv, aiWrapper, streamStarted) {
     if (!streamStarted) aiWrapper.classList.remove('hidden');
+
+    let type = 'network_error';
+    // Detect if it's a specific browser error
+    if (err.name === 'AbortError') return;
+
+    const info = ERROR_MAP[type];
+
     aiMsgDiv.innerHTML = `
     <div class="api-error-inline">
     <div class="api-error-header">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <circle cx="12" cy="12" r="10"/>
-    <line x1="12" y1="8" x2="12" y2="12"/>
-    <line x1="12" y1="16" x2="12.01" y2="16"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    ${getErrorIcon(type)}
     </svg>
-    <span class="api-error-title">Connection Error</span>
+    <span class="api-error-title">${escapeHtml(info.title)}</span>
     </div>
     <div class="api-error-message">${escapeHtml(err.message)}</div>
-    <div class="api-error-action">Could not reach the server. Please check your connection.</div>
+    <div class="api-error-footer">
+    <div class="api-error-action">${escapeHtml(info.action)}</div>
+    <button class="retry-error-btn" onclick="retryLastMessage()">Retry</button>
+    </div>
     </div>`;
 }
+
+/**
+ * Global helper to facilitate the "Retry" button functionality
+ */
+window.retryLastMessage = async function() {
+    // Find the last user message in the chat
+    const userMessages = chat.querySelectorAll('.message-wrapper.user');
+    if (userMessages.length > 0) {
+        const lastUserMsg = userMessages[userMessages.length - 1];
+        const text = lastUserMsg.querySelector('.message-content-container').textContent;
+
+        // Clear the error UI and re-run send
+        finishStream();
+        await send(text);
+    }
+};
 
 // =============================================================================
 // Stop Generation
