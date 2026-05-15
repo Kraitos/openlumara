@@ -18,6 +18,9 @@ class Models(core.module.Module):
         super().__init__(*args, **kwargs)
         self.models = None
 
+        if self.config.get("insert_available_models_into_system_prompt"):
+            self.disabled_tools.append("get_available")
+
     async def on_system_prompt(self):
         output = ""
 

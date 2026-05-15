@@ -3,8 +3,32 @@ import core
 class Chats(core.module.Module):
     """Lets you or the AI manage your chats"""
 
-    async def get_categories(self):
+    settings = {
+        "insert_system_prompt": {
+            "description": "Make the AI aware of what categories exist for your chats to be sorted into. Highly recommended!",
+            "default": True
+        }
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if not self.config.get("insert_system_prompt"):
+            self.disabled_tools.append("get_categories")
+
+    async def on_system_prompt(self):
+        if not self.config.get("insert_system_prompt"):
+            return None
+
+        cats = await self._get_categories()
+        return f"Available categories to categorise chat into: {', '.join(cats)}" if len(cats) > 1 else None
+
+    async def _get_categories(self):
         cats = [c for c in await self.channel.context.chat.get_categories() if len(c.split(":")) == 1 and c]
+        return cats
+
+    async def get_categories(self):
+        cats = await self._get_categories()
         if not cats:
             return self.result("There are no categories yet. Create one!")
 
