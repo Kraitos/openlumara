@@ -2756,21 +2756,17 @@ function createThemeSection() {
     const typewriterIcon = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
     const completionIcon = '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>';
 
-    const sendIcon = '<path d="M21 15v-8H3v8"></path><polyline points="10 7 15 12 20 7"></polyline><line x1="15" y1="12" x2="15" y2="20"></line>';
-
     const sendSoundInput = createSoundInput(
         'send_message',
         'Message sent',
-        sendIcon
+        typewriterIcon
     );
     soundContainer.appendChild(sendSoundInput);
-
-    const responseIcon = '<path d="M21 15v-8H3v8"></path><polyline points="7 8 12 3 17 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line>';
 
     const responseSoundInput = createSoundInput(
         'response_start',
         'Message received',
-        responseIcon
+        typewriterIcon
     );
     soundContainer.appendChild(responseSoundInput);
 
@@ -2788,12 +2784,10 @@ function createThemeSection() {
     );
     soundContainer.appendChild(twSoundInput);
 
-    const reasoningIcon = '<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M10 12h4M16 12h4M12 8v4M12 16v4M19 12a7 7 0 0 1-14 0"></path>';
-
     const reasoningSoundInput = createSoundInput(
         'reasoning_end',
         'Done thinking',
-        reasoningIcon
+        typewriterIcon
     );
     soundContainer.appendChild(reasoningSoundInput);
 
