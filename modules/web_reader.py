@@ -125,7 +125,11 @@ class WebReader(modules.http.Http):
 
             file_content = data.get("content", "")
 
-            output_data = await self._process_webpage(file_content)
+            if "text/html" in data.get("content_type_header", ""):
+                output_data = await self._process_webpage(file_content)
+            else:
+                output_data = modules.http.ContentSanitizer.sanitize(file_content)
+
             return self.result(
                 self._wrap_untrusted(output_data, source=f"webpage:{domain}"),
                 success=True
