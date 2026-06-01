@@ -9,6 +9,7 @@ import re
 import time
 import secrets
 import string
+import unicodedata
 import socket
 import ipaddress
 import threading
@@ -24,36 +25,31 @@ class ContentSanitizer:
     without relying on model intelligence.
     """
 
-    # Patterns that commonly appear in prompt injection attempts
     INJECTION_PATTERNS = [
-        # Role/Persona manipulation
-        (r'(?i)\b(ignore\s+previous|ignore\s+above|ignore\s+all)\b', '[FILTERED]'),
-        (r'(?i)\b(system\s*[:=]|assistant\s*[:=]|user\s*[:=])\b', '[FILTERED]'),
-        (r'(?i)\b(you\s+are\s+now|act\s+as|pretend\s+to\s+be)\b', '[FILTERED]'),
-        (r'(?i)\b(new\s+instructions|updated\s+instructions)\b', '[FILTERED]'),
+        # Role/Persona (Expanded)
+        (r'(?i)\b(ignore\s+(?:the\s+)?(?:previous|above|all|instruction|rules))\b', '[FILTERED]'),
+        (r'(?i)\b(you\s+are\s+(?:now|to\s+be|going\s+to\s+be))\b', '[FILTERED]'),
+        (r'(?i)\b(act\s+as|pretend\s+to\s+be|assume\s+the\s+role)\b', '[FILTERED]'),
+        (r'(?i)\b(persona|character|identity|roleplay)\b', '[FILTERED]'),
 
-        # Instruction injection
-        (r'(?i)\b(forget\s+everything|disregard\s+all)\b', '[FILTERED]'),
-        (r'(?i)\b(print\s+your|output\s+your|reveal\s+your)\s+(system|prompt|instructions)\b', '[FILTERED]'),
-        (r'(?i)\b(override|bypass)\s+(instructions|rules|guidelines)\b', '[FILTERED]'),
+        # Instruction/Rule Manipulation
+        (r'(?i)\b(forget|disregard|bypass|override|skip|disable)\b.*\b(rules|instructions|guidelines|filters|safety)\b', '[FILTERED]'),
+        (r'(?i)\b(print|output|reveal|show|display)\s+(?:your\s+)?(?:system|prompt|instructions|internal)\b', '[FILTERED]'),
 
-        # Common injection separators
-        (r'---+\s*SYSTEM\s*---+', '[FILTERED]'),
-        (r'===+\s*INSTRUCTIONS\s*===+', '[FILTERED]'),
-        (r'\[\[.*?\]\]', '[FILTERED]'),  # Double bracket injection
+        # Hypothetical/Scenario Jailbreaks
+        (r'(?i)\b(imagine\s+a\s+world|imagine\s+a\s+scenario|suppose\s+that|what\s+if\s+you\s+were)\b', '[FILTERED]'),
+        (r'(?i)\b(do\s+anything\s+now|dan\s+mode)\b', '[FILTERED]'),
 
-        # Special token manipulation (for various model families)
+        # Format/Structure Manipulation
+        (r'\[\[.*?\]\]', '[FILTERED]'),
         (r'<\|.*?\|>', '[FILTERED]'),
-        (r'\[INST\]', '[FILTERED]'),
-        (r'\[/INST\]', '[FILTERED]'),
-        (r'<<.*?>>', '[FILTERED]'),
+        (r'(\[.*?\]|\{.*?\})', '[FILTERED]'),
     ]
 
-    # Dangerous control characters that should always be removed
     CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 
-    # Unicode control characters (zero-width, bidirectional, etc.)
-    UNICODE_CONTROL = re.compile(r'[\u200b-\u200f\u2028-\u202f\u205f-\u206f\ufeff]')
+    # Detects Base64 blocks (at least 12 characters long to reduce false positives)
+    BASE64_PATTERN = re.compile(r'(?:[A-Za-z0-9+/]{4}){3,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?')
 
     @classmethod
     def sanitize(cls, content: str, mode: str = "neutralize") -> str:
@@ -70,18 +66,24 @@ class ContentSanitizer:
         if not isinstance(content, str):
             content = str(content) if content is not None else ""
 
-        # Step 1: Remove dangerous control characters
-        content = cls.CONTROL_CHARS.sub('', content)
-        content = cls.UNICODE_CONTROL.sub('', content)
+        # STEP 1: Unicode Normalization (Defeats homoglyph/fancy text attacks)
+        content = unicodedata.normalize('NFKC', content)
 
-        # Step 2: Apply injection pattern filters
+        # STEP 2: Remove dangerous control characters
+        content = cls.CONTROL_CHARS.sub('', content)
+
+        # STEP 3: Completely strip Base64 payloads
+        content = cls.BASE64_PATTERN.sub('', content)
+
+        # STEP 4: Apply injection pattern filters
         for pattern, replacement in cls.INJECTION_PATTERNS:
             if mode == "neutralize":
                 content = re.sub(pattern, replacement, content)
             else:  # remove
                 content = re.sub(pattern, '', content)
 
-        # Step 3: Normalize whitespace (prevents tokenization tricks)
+        # STEP 5: Normalize whitespace
+        # This cleans up any gaps left behind by the stripped Base64 or patterns
         content = re.sub(r'[\r\n]+', '\n', content)
         content = re.sub(r'[ \t]+', ' ', content)
 
