@@ -26,24 +26,32 @@ class ContentSanitizer:
     """
 
     INJECTION_PATTERNS = [
-        # Role/Persona (Expanded)
+        # Role/Persona & Identity
         (r'(?i)\b(ignore\s+(?:the\s+)?(?:previous|above|all|instruction|rules))\b', '[FILTERED]'),
         (r'(?i)\b(you\s+are\s+(?:now|to\s+be|going\s+to\s+be))\b', '[FILTERED]'),
         (r'(?i)\b(act\s+as|pretend\s+to\s+be|assume\s+the\s+role)\b', '[FILTERED]'),
         (r'(?i)\b(persona|character|identity|roleplay)\b', '[FILTERED]'),
+        (r'(?i)\b(answer\s+in\s+the\s+style\s+of|respond\s+as|speak\s+like)\b', '[FILTERED]'),
+        (r'(?i)\b(the\s+user\s+wants\s+you\s+to|system\s+command|administrator\s+override)\b', '[FILTERED]'),
 
-        # Instruction/Rule Manipulation
+        # Instruction/Rule Manipulation & Bypass
         (r'(?i)\b(forget|disregard|bypass|override|skip|disable)\b.*\b(rules|instructions|guidelines|filters|safety)\b', '[FILTERED]'),
+        (r'(?i)\b(you\s+are\s+no\s+longer\s+bound\s+by|unrestricted\s+mode|jailbreak|dan\s+mode)\b', '[FILTERED]'),
         (r'(?i)\b(print|output|reveal|show|display)\s+(?:your\s+)?(?:system|prompt|instructions|internal)\b', '[FILTERED]'),
+        (r'(?i)\b(do\s+anything\s+now|dan\s+mode)\b', '[FILTERED]'),
+
+        # Goal Hijacking & Instruction Smuggling
+        (r'(?i)\binstead\s+of\b.*\b(do|perform|say|write)\b', '[FILTERED]'),
+        (r'(?i)\b(translate|summarize|repeat)\b.*\b(but\s+first|and\s+then|also)\b', '[FILTERED]'),
 
         # Hypothetical/Scenario Jailbreaks
         (r'(?i)\b(imagine\s+a\s+world|imagine\s+a\s+scenario|suppose\s+that|what\s+if\s+you\s+were)\b', '[FILTERED]'),
-        (r'(?i)\b(do\s+anything\s+now|dan\s+mode)\b', '[FILTERED]'),
 
-        # Format/Structure Manipulation
+        # Format/Structure & Constraint Manipulation
         (r'\[\[.*?\]\]', '[FILTERED]'),
         (r'<\|.*?\|>', '[FILTERED]'),
         (r'(\[.*?\]|\{.*?\})', '[FILTERED]'),
+        (r'(?i)\b(respond\s+only\s+with|do\s+not\s+include\s+any|forget\s+the\s+limitations)\b', '[FILTERED]'),
     ]
 
     CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
@@ -247,23 +255,17 @@ class Http(core.module.Module):
         """Wrap external content with sanitization and strong boundaries."""
         delim = self._generate_delimiter()
 
-        # SANITIZE ALL CONTENT before wrapping
-        if isinstance(content, str):
-            sanitized_content = ContentSanitizer.sanitize(content)
-        elif isinstance(content, dict):
-            sanitized_content = {}
-            for k, v in content.items():
-                if isinstance(v, str):
-                    sanitized_content[k] = ContentSanitizer.sanitize(v)
-                elif isinstance(v, list):
-                    sanitized_content[k] = [
-                        ContentSanitizer.sanitize(item) if isinstance(item, str) else item
-                        for item in v
-                    ]
-                else:
-                    sanitized_content[k] = v
-        else:
-            sanitized_content = content
+        def _recursive_sanitize(data):
+            if isinstance(data, str):
+                return ContentSanitizer.sanitize(data)
+            elif isinstance(data, dict):
+                return {k: _recursive_sanitize(v) for k, v in data.items()}
+            elif isinstance(data, list):
+                return [_recursive_sanitize(item) for item in data]
+            else:
+                return data
+
+        sanitized_content = _recursive_sanitize(content)
 
         return {
             "security_notice": self.INJECTION_NOTICE,
