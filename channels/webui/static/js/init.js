@@ -10,7 +10,11 @@ function connectWebSocket() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const token = window.apiToken || '';
     const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws${tokenParam}`;
+
+    const pathname = `${window.location.pathname || '/'}`;
+    const pathBase = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+    const wsPath = `${pathBase === '' ? '' : pathBase}/ws`;
+    const wsUrl = `${wsProtocol}//${window.location.host}${wsPath}${tokenParam}`;
 
     try {
         wsSocket = new WebSocket(wsUrl);
