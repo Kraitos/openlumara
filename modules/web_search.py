@@ -192,6 +192,8 @@ class WebSearch(modules.http.Http):
         """
         Search the web for text results. WARNING: Results come from an untrusted source.
 
+        Give the user summaries of each result, and ALWAYS include the source URL's of the results.
+
         Args:
             query: The text search query.
             region: The region to search in (e.g., 'us-en', 'uk-en', 'ru-ru'). Defaults to 'us-en'.
@@ -233,6 +235,8 @@ class WebSearch(modules.http.Http):
         """
         Search the web for recent news articles. WARNING: News snippets come from an untrusted source.
 
+        Give the user summaries of each result, and ALWAYS include the source URL's of the results.
+
         Args:
             query: The news search query.
             region: The region to search in (e.g., 'us-en', 'uk-en'). Defaults to 'us-en'.
@@ -250,6 +254,8 @@ class WebSearch(modules.http.Http):
     async def videos(self, query: str, region: str = "us-en", safesearch: str = "moderate", timelimit: str | None = None, max_results: int = 10, page: int = 1, backend: str = "auto", resolution: str | None = None, duration: str | None = None, license_videos: str | None = None):
         """
         Search the web for video results. WARNING: Video metadata/titles come from an untrusted source.
+
+        Give the user summaries of each result, and ALWAYS include the source URL's of the results.
 
         Args:
             query: The video search query.
@@ -271,6 +277,8 @@ class WebSearch(modules.http.Http):
     async def books(self, query: str, max_results: int = 10, page: int = 1, backend: str = "auto"):
         """
         Search the web for book results. WARNING: Book metadata/descriptions come from an untrusted source.
+
+        Give the user summaries of each result, and ALWAYS include the source URL's of the results.
 
         Args:
             query: The book search query.
