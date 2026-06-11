@@ -275,10 +275,10 @@ class Commands:
         cmd_prefix, cmd, args = await self._extract_cmd(content)
 
         if len(cmd) <= 0:
-            raise Exception("Command was somehow zero length. Aborting for security reasons.")
+            raise core.exceptions.UnauthorizedException("Command was somehow zero length. Aborting for security reasons.")
 
         if not authorized and cmd[0] not in self.PUBLIC_COMMANDS:
-            raise Exception("You are not authorized to run admin commands.")
+            raise core.exceptions.UnauthorizedException("You are not authorized to run admin commands.")
 
         # treat message as normal if it's not a command
         if cmd is None or not content.startswith(cmd_prefix):
