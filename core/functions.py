@@ -72,6 +72,11 @@ def validate_path_string(path: str) -> str:
     for _ in range(3):
         decoded = urllib.parse.unquote(decoded)
 
+    # normalize slashes after decoding to prevent windows join bypasses
+    decoded = decoded.replace("\\", os.sep).replace("/", os.sep)
+    # strip again in case unquote introduced new separators
+    decoded = decoded.strip(os.path.sep)
+
     # Check for traversal and null bytes
     if ".." in decoded or "\x00" in decoded:
         raise ValueError("Path traversal is not allowed")
