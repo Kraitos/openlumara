@@ -293,7 +293,7 @@ class StorageDict(dict):
                             path_no_ext = rel_path[:-3]
 
                             # normalize path to make it cross-platform
-                            normalized = os.path.normpath(path_no_ext)=
+                            normalized = os.path.normpath(path_no_ext)
                             logical_key = "/".join(normalized.split(os.sep))
 
                             if logical_key not in flat_items:
