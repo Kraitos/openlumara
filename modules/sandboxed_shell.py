@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import shutil
 import signal
@@ -167,6 +168,80 @@ class SandboxedShell(core.module.Module):
                 pass
 
         return bytes(stdout_buf), bytes(stderr_buf), process.returncode or -1, timed_out
+
+    async def on_background(self):
+        """Monitors container memory usage and kills/restarts if limit is exceeded."""
+        # Parse the configured memory limit once to avoid repeated string parsing
+        limit_str = self.config.get("memory_limit", default="256m")
+        limit_bytes = self._parse_memory_string(limit_str)
+        if not limit_bytes:
+            limit_bytes = 268435456  # Fallback to 256MB in bytes
+
+        while True:
+            try:
+                await asyncio.sleep(0.5)
+
+                if not self.container_name or not self.runtime:
+                    continue
+
+                # Use {{json .MemUsage}} to get raw bytes directly from the runtime
+                cmd = [self.runtime, 'stats', '--no-stream', '--format', '{{json .}}', self.container_name]
+                try:
+                    stdout, stderr, exit_code, _ = await self._run_async_cmd(cmd, timeout=5.0, limit=1024)
+                    if not stdout:
+                        continue
+
+                    # Decode bytes to string once, then parse JSON
+                    stats_json = json.loads(stdout.decode('utf-8'))
+                    current_mem_bytes = stats_json.get("MemUsage", 0)
+
+                    if current_mem_bytes and current_mem_bytes > limit_bytes:
+                        core.log("sandbox_shell", f"Memory limit exceeded ({current_mem_bytes} > {limit_bytes} bytes). Killing container.")
+                        await self._kill_container()
+                        self.container_name = None
+
+                        core.log("sandbox_shell", "Restarting container due to memory limit...")
+                        await self.on_ready()
+                except Exception as e:
+                    core.log("sandbox_shell", f"Error checking memory stats: {e}")
+            except Exception as e:
+                core.log("sandbox_shell", f"Background loop error: {e}")
+                await asyncio.sleep(5)  # Backoff to prevent tight loop on errors
+
+    async def _kill_container(self):
+        """Kills and removes the container."""
+        if self.container_name:
+            try:
+                await self._run_async_cmd([self.runtime, 'kill', self.container_name], timeout=5.0)
+            except:
+                pass
+            try:
+                await self._run_async_cmd([self.runtime, 'rm', '-f', self.container_name], timeout=10.0)
+            except:
+                pass
+
+    def _parse_memory_string(self, mem_str):
+        """Converts memory string like '10.23MiB' or '256m' to bytes."""
+        if not mem_str:
+            return 0
+        mem_str = mem_str.strip().upper()
+        multipliers = {
+            'K': 1024,
+            'M': 1024**2,
+            'G': 1024**3,
+            'T': 1024**4
+        }
+        
+        for suffix, mult in multipliers.items():
+            if mem_str.endswith(suffix + 'B') or mem_str.endswith(suffix):
+                try:
+                    return float(mem_str[:-len(suffix)]) * mult
+                except ValueError:
+                    return 0
+        try:
+            return float(mem_str)
+        except ValueError:
+            return 0
 
     async def on_ready(self):
         """Starts the persistent container when the module is ready."""
