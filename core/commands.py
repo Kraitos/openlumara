@@ -266,7 +266,6 @@ class Commands:
             return (cmd_prefix, cmd, args)
         except ValueError as e:
             # Handle malformed shell syntax gracefully
-            core.log_error("Command parsing error", e)
             return None, None, []
 
     async def process_input(self, message: dict, authorized=False):
