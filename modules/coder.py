@@ -56,14 +56,7 @@ except Exception as e:
 
 
 class Coder(core.module.Module):
-    """Code editing and file management tools for AI assistants.
-
-    Provides two modes of operation:
-    - Symbol-based: Target specific functions/classes/methods for reading and editing
-    - File-based: Read and edit entire files directly
-
-    Security features include sandboxed paths, syntax validation, and automatic backups.
-    """
+    """Allows your AI to write, edit and test code for you."""
 
     # Language-specific formatting tools
     FORMATTERS = {
@@ -228,55 +221,55 @@ class Coder(core.module.Module):
             "type": "select",
             "options": {
                 "none": "Prevent reading any files",
-                "symbols": "Read specific functions/classes/methods by name. More precise and efficient. Requires tree-sitter for best results.",
-                "files": "Read entire files with line limits",
-                "both": "Access to both symbol-based and file-based reading tools"
+                "symbols": "The AI will target specific 'symbols' (functions/class methods) to read their code. Uses treesitter for symbol targeting and syntax error detection.",
+                "files": "The AI will read entire files, with a line and filesize limit",
+                "both": "The AI will be able to read using symbol tools and full file reading tools"
             }
         },
         "writing_mode": {
             "default": "symbols",
             "type": "select",
             "options": {
-                "read-only": "Cannot modify any files",
-                "symbols": "Edit specific functions/classes/methods by name. Safer and more precise.",
-                "full edits": "Edit files using search/replace and direct modifications",
-                "both": "Access to both symbol-based and file-based editing tools"
+                "read-only": "The AI will only be able to read your files, not write to them.",
+                "symbols": "The AI will edit code by targeting specific 'symbols' (functions/class methods)",
+                "full edits": "The AI will edit code by performing direct file edits and search/replace",
+                "both": "The AI will be able to edit using symbol tools and full file editing tools"
             }
         },
         "allow_total_overwrites": {
-            "description": "Allow complete file overwrites. DANGEROUS - can destroy work if AI makes mistakes.",
+            "description": "Whether to allow the AI to fully overwrite files when writing mode is set to *full edits* or *both*. This is dangerous with some AI models because they can easily mess up your entire file, but is also sometimes needed for things like refactors.",
             "default": False
         },
         "coding_style": {
-            "default": "Write clean, well-commented code. Do not include your reasoning inside final code.",
-            "description": "Style guidelines for generated code",
+            "default": "",
+            "description": "Use this to specify style guidelines for your AI to use while coding. Gets added to the system prompt, above the project list.",
             "type": "long_text"
         },
         "add_project_list_to_system_prompt": {
             "default": True,
-            "description": "Include available projects in the system prompt for easy reference"
+            "description": "Make your AI aware of all the folders in your sandbox folder, so you can simply say 'in my cute_website project, edit the buttons to be cuter"
         },
         "limits": {
             "folder_blacklist": {
-                "description": "Folders to skip when listing projects (e.g., 'venv', '__pycache__', 'node_modules')",
+                "description": "Skip these folders when listing projects recursively. Helps not flood your context with hundreds of files, such as with python's `venv` and `__pycache__`)",
                 "default": ["venv", "__pycache__"]
             },
             "max_file_size": {
-                "description": "Max file size (in MB) for reading",
+                "description": "Max file size (in MB) the coder should be able to read in one go",
                 "default": 10
             },
             "max_read_lines": {
-                "description": "Max lines to read from any file",
+                "description": "Max amount of lines to read from any given file. Use this to prevent your context window from getting stuffed to the brim really fast!",
                 "default": 1000
             },
             "max_grep_results": 50,
             "backup_retention_count": {
-                "description": "Number of backups to keep per file",
+                "description": "How many backups of each file to keep",
                 "default": 10
             }
         },
         "allow_code_execution": {
-            "description": "Allow AI to execute code. EXTREMELY DANGEROUS - use sandboxed shell instead!",
+            "description": "Whether to allow the AI to execute the code it has written. **EXTREMELY DANGEROUS**! It's recommended to use the `sandboxed shell` module instead, point it at your coder sandbox folder.",
             "unsafe": True,
             "default": False
         }
