@@ -908,7 +908,10 @@ async function loadChat(chatId) {
         return;
     }
 
-    if (isStreaming) await stopGeneration();
+    // do not allow chat switching while streaming
+    if (isStreaming) {
+        return;
+    }
 
     try {
         const response = await fetch('/chat/load?id=' + chatId);

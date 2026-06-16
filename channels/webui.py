@@ -38,8 +38,8 @@ WEBUI_DIR = core.get_path("channels/webui")
 JS_FILES = [
     "icons", "variables", "content_helpers", "markdown", "messages",
     "msg_actions", "sidebar", "utils", "notif", "status", "polling", "chats",
-    "tags", "search", "export", "modals", "autocomplete", "input", "send", "upload", "theming",
-    "audio", "modal_settings", "storage_editor", "responsive", "init"
+    "tags", "search", "export", "modals", "autocomplete", "input", "typewriter", "streaming", "send", "upload", "theming",
+    "audio", "modal_settings", "storage_editor", "responsive", "websockets", "system_logs", "init"
 ]
 
 # same deal for css files
@@ -277,8 +277,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 if msg_type == "stop":
                     # Signal the API to stop
-                    if channel_instance and channel_instance.manager.API:
-                        channel_instance.manager.API.cancel_request = True
+                    channel_instance.log("debug", "attempting to stop stream");
+                    if channel_instance:
+                        await channel_instance.manager.API.cancel()
+                        await manager.broadcast({
+                            "type": "stream_complete"
+                        })
 
                 elif msg_type == "cancel":
                     stream_id = data.get("id")
