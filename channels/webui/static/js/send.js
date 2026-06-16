@@ -15,7 +15,15 @@ async function send(providedContent = null) {
     const rawContent = providedContent !== null ? providedContent : inputField.value.trim();
     const message = typeof rawContent === 'string' ? rawContent : extractTextContent(rawContent);
 
+    // block sending while a stream is ongoing
     if (isStreaming) return;
+
+    // allow send if typewriter is running but streaming has finished.
+    // just skip the typing animations
+    // makes you also able to skip by just pressing enter
+    if (isTypewriterRunning) { await stopGeneration(); }
+
+    // reject blank messages
     if (!message && !isRegenerate) return;
 
     if (!isRegenerate) {
