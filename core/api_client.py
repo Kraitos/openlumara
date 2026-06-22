@@ -1,4 +1,5 @@
 import core
+import httpx
 import openai
 import asyncio
 import json
@@ -70,11 +71,23 @@ class APIClient():
         self._connection_attempts += 1
         api_config = core.config.get("api", {})
 
+        # infinite timeout
+        httpx_timeout = httpx.Timeout(
+            connect=5.0,
+            read=None,
+            write=None,
+            pool=None
+        )
+
+        use_secure_connection = not self.manager.args.insecure_tls
+        if not use_secure_connection:
+            self.manager.log("API", "WARNING: TLS certificate and hostname verification are disabled")
+
         try:
-            if self.manager.args.insecure_tls:
-                import httpx
-                self._httpx_client = httpx.AsyncClient(verify=False)
-                self.manager.log("API", "WARNING: TLS certificate and hostname verification are disabled")
+            self._httpx_client = httpx.AsyncClient(
+                verify=use_secure_connection,
+                timeout=httpx_timeout
+            )
 
             self._AI = openai.AsyncOpenAI(
                 base_url=api_config.get("url"),
