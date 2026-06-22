@@ -1,4 +1,5 @@
 import core
+import json
 
 class Characters(core.module.Module):
     """Lets your AI embody different characters! inspired by characterAI, janitorAI, sillytavern, etc."""
@@ -386,6 +387,40 @@ class Characters(core.module.Module):
         self.user_profile["name"] = name
         self.user_profile.save()
         return self.result("name set")
+
+    async def import_json(self, json_code: str):
+        """imports a json character V2 card into your character storage"""
+        try:
+            char_obj = json.loads(json_code)
+        except Exception as e:
+            return self.result(f"error: {core.detail_error(e)}", success=False)
+
+        if not char_obj:
+            return self.result("error: character card was empty", success=False)
+
+        char_data = char_obj.get("data")
+        if not char_data:
+            # might be char card V1, try to get the name first
+            if not char_obj.get("name"):
+                return self.result("error: character card did not have a data field", success=False)
+
+            # if so, convert it to V2
+            char_obj = {
+                "spec": "chara_card_v2",
+                "spec_version": "2.0",
+                "data": char_obj
+            }
+
+        char_name = char_data.get("name")
+
+        if not char_name:
+            return self.result("error: failed to extract character name from character data", success=False)
+
+        # add it to storage
+        self.characters[char_name] = char_obj
+        self.characters.save()
+
+        return self.result("character successfully imported")
 
     @core.module.command("username")
     async def cmd_set_user_name(self, args: list):
