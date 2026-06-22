@@ -1780,7 +1780,10 @@ class Webui(core.channel.Channel):
 
     async def on_push(self, message: dict):
         """Triggered when a message is pushed (announcements, etc)"""
-        next_index = len(await channel_instance.context.chat.get())
+        next_index = len(await channel_instance.context.chat.get())-1
+        if next_index < 0:
+            next_index = 0
+
         message["index"] = next_index
         self.log("webui", f"sending push message (index: {next_index}) to clients")
         await manager.broadcast({"type": "push", "message": message, "index": next_index})
