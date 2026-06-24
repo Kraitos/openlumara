@@ -22,11 +22,11 @@ class Cli(core.channel.Channel):
         "show_reasoning": {
             "description": "Whether to show the model's internal reasoning process within sent messages. Works in both streaming mode and non-streaming mode",
             "default": False
-        },
-        "stream_tool_calls": {
-            "description": "Whether to stream tool call arguments as they are written by the AI. Extremely useful when using toolcalls with long content, such as when using the Coder to write code",
-            "default": False
         }
+        # "stream_tool_calls": {
+        #     "description": "Whether to stream tool call arguments as they are written by the AI. Extremely useful when using toolcalls with long content, such as when using the Coder to write code",
+        #     "default": False
+        # }
     }
 
     def _setup_style(self):
