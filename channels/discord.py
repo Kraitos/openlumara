@@ -197,7 +197,7 @@ class Client(discord.Client):
 class Discord(core.channel.Channel):
     """Talk to your AI over Discord"""
 
-    dependencies = ["discord.py"]
+    dependencies = ["aiohttp", "discord.py"]
 
     settings =  {
         "token": {
