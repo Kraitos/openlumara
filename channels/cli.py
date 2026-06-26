@@ -121,12 +121,12 @@ class Cli(core.channel.Channel):
 
         return True
 
-    async def on_request_stalled(self):
-        print("\r...please wait for other requests to finish...", end="", flush=True)
-
     async def on_push(self, message: dict):
         self.log("push", message.get("content").strip())
         print(flush=True)
+
+    # async def on_request_stalled(self):
+    #     print("\r...please wait for other requests to finish...", end="", flush=True)
 
     def on_log(self, category, message):
         if category == "toolcall":

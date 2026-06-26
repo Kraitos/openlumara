@@ -35,9 +35,9 @@ class CliLite(core.channel.Channel):
     def on_log(self, category, message):
         print(f"[{category.upper()}] {message}")
 
-    async def on_request_stalled(self):
-        print("\r", end="", flush=True)
-        print("...please wait for other requests to finish...", flush=True)
+    # async def on_request_stalled(self):
+    #     print("\r", end="", flush=True)
+    #     print("...please wait for other requests to finish...", flush=True)
 
     async def on_push(self, message):
         print("\n"+message.get("content"), flush=True)

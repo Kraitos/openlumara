@@ -197,10 +197,6 @@ class Channel:
         """
         pass
 
-    async def on_request_stalled(self):
-        """overridable method that triggers when a request is sent to the API while another one is still ongoing. use it to display a message to the user informing them about the wait."""
-        await self.push("Another request is currently being processed, please wait..")
-
     async def send(self, message: dict, commands_authorized=False):
         """sends a message to the AI from within the current channel"""
 
@@ -233,11 +229,6 @@ class Channel:
             reconnected = await self.manager.API.connect()
             if not reconnected:
                 return {"role": "assistant", "content": self._get_disconnection_message()}
-
-        # if waiting for another request to finish, run the hook
-        # so that the channel can display a user friendly message
-        if self.manager.API.request_lock.locked():
-            await self.on_request_stalled()
 
         # add sent message to context
         add_success = await self.context.chat.add(message)
@@ -350,11 +341,6 @@ class Channel:
                 yield {"type": "content", "content": self._get_disconnection_message()}
                 return
 
-        # if waiting for another request to finish, run the hook
-        # so that the channel can display a user friendly message
-        if self.manager.API.request_lock.locked():
-            await self.on_request_stalled()
-
         # add user's message to context
         add_success = await self.context.chat.add(user_message)
         if not add_success:
@@ -429,7 +415,7 @@ class Channel:
                 toolcall_request = await self.tc_manager._build_recursive_request(token, final_content, final_reasoning)
 
                 # we add the accumulated content tokens so far to the assistant_content argument
-                async for sub_token in self.tc_manager.process(toolcall_request, push=False):
+                async for sub_token in self.tc_manager.process(toolcall_request):
                     yield sub_token
                 # tc_manager.process() will loop until the AI no longer deems tool calls necessary
             elif token_type == "tool":
@@ -494,7 +480,7 @@ class Channel:
             if isinstance(parsed, dict):
                 data = parsed
             else:
-                # If it's not a dict, it might be a partial dict that json_repair 
+                # If it's not a dict, it might be a partial dict that json_repair
                 # couldn't quite fix into a dict. Let's try the regex fallback.
                 raise ValueError("Not a dict")
         except Exception:
@@ -502,18 +488,18 @@ class Channel:
             # This mimics the WebUI's ability to extract keys even from incomplete JSON
             key_pattern = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"\s*:\s*')
             matches = list(key_pattern.finditer(args_str))
-            
+
             for i, match in enumerate(matches):
                 key = match.group(1)
                 value_start = match.end()
-                
+
                 # Determine the end of the value
                 if i + 1 < len(matches):
                     next_match_start = matches[i+1].start()
                     potential_value_str = args_str[value_start:next_match_start].rstrip().rstrip(',')
                 else:
                     potential_value_str = args_str[value_start:]
-                
+
                 # Use json_repair to try and get the value by wrapping it in a dict
                 try:
                     # Try to get the value by wrapping it in a dict
@@ -542,7 +528,7 @@ class Channel:
                 val_str = json.dumps(value)
             else:
                 val_str = str(value)
-            
+
             prev_val = self._tool_state["keys_state"].get(key)
 
             if prev_val is None:
@@ -704,6 +690,11 @@ class Channel:
         (when the message "[CORE] Startup complete" shows up)
         """
         pass
+
+    async def on_request_stalled(self):
+        """overridable method that triggers when a request is sent to the API while another one is still ongoing. use it to display a messag
+e to the user informing them about the wait."""
+        await self.push("Another request is currently being processed, please wait..")
 
     async def on_push(self, message: dict):
         raise NotImplementedError
